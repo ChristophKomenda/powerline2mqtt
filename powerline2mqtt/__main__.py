@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 import paho.mqtt.client as mqtt
 from .parser import parse_topology
-from .runtime import DiscoveryCache, Presence, load_known
+from .runtime import DiscoveryCache, Presence, load_known, PollSchedule, PollHealth
 from .discovery import adapter_configs, bridge_configs
 from datetime import datetime, timezone
 from . import __version__
@@ -76,7 +76,10 @@ def discover(row):
 
 def main():
     known = set()
-    failures = 0
+    health = PollHealth()
+    schedule = PollSchedule(interval)
+    last_count = 0
+    online = False
     last_success = None
     store = Path('/data/known.json')
     try:
@@ -88,44 +91,79 @@ def main():
     presence = Presence(known)
     client.connect_async(os.getenv('MQTT_HOST','127.0.0.1'), int(os.getenv('MQTT_PORT','1883')), 30)
     client.loop_start()
-    wake.clear()
+    def publish_bridge():
+        for topic, cfg in bridge_configs(node, prefix, interval):
+            cache.publish(topic, cfg, pub)
+        state = dict(count=last_count, last_success=last_success,
+                     interface=iface, version=__version__, poll_interval=interval,
+                     retry_interval=schedule.retry, **health.metrics())
+        pub(f'{base}/bridge/state', json.dumps(state), retain=False)
+
     try:
         while not stop.is_set():
+            wake.clear()
             if not connected.wait(5):
-                log.warning('Waiting for MQTT connection')
                 continue
+            remaining = schedule.remaining(time.monotonic())
+            if remaining:
+                # Birth/reconnect can request a refresh but never an early scan.
+                wake.wait(remaining)
+                continue
+            if stop.is_set():
+                break
+            try:
+                result = subprocess.run(['plcstat','-i',iface,'-t'], capture_output=True, text=True, timeout=20, check=True)
+                rows = parse_topology(result.stdout)
+            except Exception as exc:
+                health.record(False)
+                schedule.completed(time.monotonic(), False)
+                log.warning('Poll failed: %s', exc)
+                try:
+                    if online and health.tolerate_failure() and not refresh.is_set():
+                        # Only diagnostics are refreshed; do not refresh old adapter readings.
+                        publish_bridge()
+                    else:
+                        online = False
+                        pub(avail, 'offline')
+                except Exception as mqtt_exc:
+                    online = False
+                    refresh.set()
+                    log.warning('MQTT update failed: %s', mqtt_exc)
+                continue
+            health.record(True)
+            last_count = len(rows)
+            last_success = datetime.now(timezone.utc).isoformat()
+            current = {mac.replace(':','').lower() for mac in rows}
+            offline = presence.observe(current)
             try:
                 if refresh.is_set():
                     refresh.clear()
                     cache.clear()
-                result = subprocess.run(['plcstat','-i',iface,'-t'], capture_output=True, text=True, timeout=20, check=True)
-                rows = parse_topology(result.stdout)
-                current = {mac.replace(':','').lower() for mac in rows}
-                for key in presence.observe(current):
+                for key in offline:
                     pub(f'{base}/{key}/availability','offline')
                 known = presence.known
-                store.parent.mkdir(parents=True, exist_ok=True)
-                tmp = store.with_suffix('.tmp')
                 if known != saved_known:
+                    store.parent.mkdir(parents=True, exist_ok=True)
+                    tmp = store.with_suffix('.tmp')
                     tmp.write_text(json.dumps(sorted(known)))
                     tmp.replace(store)
                     saved_known = set(known)
-                for row in rows.values(): discover(row)
-                last_success = datetime.now(timezone.utc).isoformat()
-                for topic, cfg in bridge_configs(node, prefix, interval):
-                    cache.publish(topic, cfg, pub)
-                pub(f'{base}/bridge/state', json.dumps(dict(count=len(rows), failures=failures, last_success=last_success, interface=iface, version=__version__)), retain=False)
+                for row in rows.values():
+                    discover(row)
+                publish_bridge()
                 pub(avail,'online')
+                online = True
                 log.info('Detected %d adapters', len(rows))
+                schedule.completed(time.monotonic(), True)
             except Exception as exc:
-                failures += 1
-                cache.clear()
-                log.warning('Poll failed: %s', exc)
-                if connected.is_set():
-                    try: pub(avail,'offline')
-                    except Exception: log.warning('Could not publish availability')
-            wake.wait(min(5, interval) if last_success is None else interval)
-            wake.clear()
+                online = False
+                refresh.set()
+                log.warning('MQTT or persistence update failed: %s', exc)
+                try:
+                    pub(avail,'offline')
+                except Exception:
+                    log.warning('Could not publish availability')
+                schedule.completed(time.monotonic(), False)
     finally:
         if connected.is_set():
             try: pub(avail,'offline')

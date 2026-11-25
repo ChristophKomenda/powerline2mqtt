@@ -17,7 +17,7 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(row['tx'],0)
         self.assertEqual(len(cfgs),7)
     def test_bridge(self):
-        self.assertEqual(len(dict(bridge_configs('pi5','homeassistant',60))),5)
+        self.assertEqual(len(dict(bridge_configs('pi5','homeassistant',60))),10)
     def test_connectivity(self):
         row=next(iter(parse_topology(SAMPLE).values()))
         cfg=next(c for _,c in adapter_configs(row,'pi5','homeassistant',60) if c['name']=='Connectivity')
