@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0-rc.1
+- Refresh discovery on Home Assistant birth messages.
+- Add MQTT discovery origin metadata.
+- Avoid rewriting unchanged adapter cache.
+- Experimental HAOS source-build app and CI builds.
+- Release validation checklist.
+
 ## 0.1.0-alpha.3
 - Cache discovery payloads; refresh on MQTT reconnection or poll failure.
 - Require two successful missing-adapter observations before marking it offline.
