@@ -1,0 +1,15 @@
+services:
+  powerline2mqtt:
+    build: .
+    container_name: powerline2mqtt
+    network_mode: host
+    cap_drop: [ALL]
+    cap_add: [NET_RAW]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    volumes:
+      - powerline_data:/data
+    env_file: .env
+    restart: unless-stopped
+volumes:
+  powerline_data:
