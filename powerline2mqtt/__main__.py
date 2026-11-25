@@ -19,9 +19,10 @@ log = logging.getLogger('powerline2mqtt')
 stop = threading.Event()
 connected = threading.Event()
 refresh = threading.Event()
+wake = threading.Event()
 cache = DiscoveryCache()
 for sig in (signal.SIGINT, signal.SIGTERM):
-    signal.signal(sig, lambda *_: stop.set())
+    signal.signal(sig, lambda *_: (stop.set(), wake.set()))
 node = os.getenv('NODE_ID', 'pi5')
 if not re.fullmatch(r'[A-Za-z0-9_-]+', node):
     raise ValueError('Invalid NODE_ID')
@@ -41,10 +42,17 @@ def on_connect(c, u, flags, reason, props):
     if reason.is_failure:
         log.error('MQTT rejected connection: %s', reason)
     else:
+        c.subscribe(f'{prefix}/status', qos=1)
         refresh.set()
         connected.set()
+        wake.set()
 def on_disconnect(c, u, flags, reason, props):
     connected.clear()
+def on_message(c, u, message):
+    if message.topic == f'{prefix}/status' and message.payload == b'online':
+        refresh.set()
+        wake.set()
+client.on_message = on_message
 client.on_connect = on_connect
 client.on_disconnect = on_disconnect
 
@@ -76,9 +84,11 @@ def main():
     except FileNotFoundError: pass
     except (ValueError, OSError) as exc:
         log.warning("Ignoring unreadable adapter cache: %s", exc)
+    saved_known = set(known)
     presence = Presence(known)
     client.connect_async(os.getenv('MQTT_HOST','127.0.0.1'), int(os.getenv('MQTT_PORT','1883')), 30)
     client.loop_start()
+    wake.clear()
     try:
         while not stop.is_set():
             if not connected.wait(5):
@@ -96,8 +106,10 @@ def main():
                 known = presence.known
                 store.parent.mkdir(parents=True, exist_ok=True)
                 tmp = store.with_suffix('.tmp')
-                tmp.write_text(json.dumps(sorted(known)))
-                tmp.replace(store)
+                if known != saved_known:
+                    tmp.write_text(json.dumps(sorted(known)))
+                    tmp.replace(store)
+                    saved_known = set(known)
                 for row in rows.values(): discover(row)
                 last_success = datetime.now(timezone.utc).isoformat()
                 for topic, cfg in bridge_configs(node, prefix, interval):
@@ -112,7 +124,8 @@ def main():
                 if connected.is_set():
                     try: pub(avail,'offline')
                     except Exception: log.warning('Could not publish availability')
-            stop.wait(min(5, interval) if last_success is None else interval)
+            wake.wait(min(5, interval) if last_success is None else interval)
+            wake.clear()
     finally:
         if connected.is_set():
             try: pub(avail,'offline')

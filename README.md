@@ -6,7 +6,7 @@
 
 Powerline2MQTT bridges compatible HomePlug AV/AV2 adapters to MQTT using Linux Ethernet management frames and `plcstat` from open-plc-utils. No adapter IP address is required. The collector can run separately from Home Assistant.
 
-> **Experimental alpha:** one Raspberry Pi 5 / Debian 13 / QCA7420 local adapter and two remote Gongjin-OUI stations were validated end to end with alpha.1 (18 sensors). Alpha.2 adds discovery metadata and diagnostics; other chipsets, AMD64 and HAOS are not yet validated. G.hn is not supported.
+> **Experimental alpha:** one Raspberry Pi 5 / Debian 13 / QCA7420 local adapter and two remote Gongjin-OUI stations were validated end to end with alpha.1 (18 sensors). The release candidate adds HA restart recovery and experimental HAOS packaging; other chipsets, AMD64 and HAOS are not yet validated. G.hn is not supported.
 
 ## At a glance
 
@@ -62,8 +62,12 @@ Run `docker compose exec powerline2mqtt plcstat -i eth0 -t` (replace eth0 if nee
 
 ## Development and compatibility
 
-Run `python3 -m unittest discover -s tests -v`. CI includes local container build checks for ARM64 and AMD64 without publishing; published packages and platform compatibility must be verified after the workflow completes. HAOS add-on support is planned, not available yet. Contributions with sanitized topology fixtures, chipset information and reproducible bug reports are welcome.
+Run `python3 -m unittest discover -s tests -v`. CI includes local container build checks for ARM64 and AMD64 without publishing; published packages and platform compatibility must be verified after the workflow completes. An experimental source-build HAOS app is included; see [HAOS setup](haos/DOCS.md). Runtime validation is still pending. Contributions with sanitized topology fixtures, chipset information and reproducible bug reports are welcome.
 
 ## Licensing
 
 Project source is MIT licensed. The separately installed Debian packages retain their own licenses; see `/usr/share/doc/plc-utils/copyright`, `/usr/share/doc/plc-utils-extra/copyright` and `/usr/share/doc/python3-paho-mqtt/copyright` inside the image. Redistribution of images is gated pending dependency license review and any required source/notice obligations.
+
+## Release readiness
+
+See [release checklist](docs/RELEASE.md) for hardware, MQTT outage, HA restart, HAOS and redistribution checks. The RC is not a stable release.

@@ -1,4 +1,8 @@
 """Pure discovery payload builders; stable alpha.1 identifiers."""
+from . import __version__
+
+ORIGIN = {'name': 'Powerline2MQTT', 'sw_version': __version__, 'support_url': 'https://github.com/ChristophKomenda/powerline2mqtt'}
+
 VENDORS = {'34:E8:94': 'TP-Link', '80:CA:4B': 'Gongjin Electronics'}
 
 def adapter_configs(row, node, prefix, interval):
@@ -21,9 +25,10 @@ def adapter_configs(row, node, prefix, interval):
         if field in ('tx','rx'):
             cfg.update(unit_of_measurement='Mbit/s', device_class='data_rate', state_class='measurement')
         else: cfg['entity_category']='diagnostic'
+        cfg['origin'] = ORIGIN
         yield f'{prefix}/sensor/{ident}/{field}/config', cfg
     # Bridge outage makes connectivity unknown, not falsely disconnected.
-    yield f'{prefix}/binary_sensor/{ident}/connectivity/config', dict(name='Connectivity', unique_id=f'{ident}_connectivity', device=device, device_class='connectivity', state_topic=f'{root}/availability', payload_on='online', payload_off='offline', availability_topic=f'{base}/availability', entity_category='diagnostic')
+    yield f'{prefix}/binary_sensor/{ident}/connectivity/config', dict(origin=ORIGIN, name='Connectivity', unique_id=f'{ident}_connectivity', device=device, device_class='connectivity', state_topic=f'{root}/availability', payload_on='online', payload_off='offline', availability_topic=f'{base}/availability', entity_category='diagnostic')
 
 def bridge_configs(node, prefix, interval):
     ident=f'powerline2mqtt_{node}_bridge'
@@ -33,4 +38,5 @@ def bridge_configs(node, prefix, interval):
         cfg=dict(name=name, unique_id=f'{ident}_{field}', device=device, icon=icon, state_topic=f'{base}/bridge/state', value_template='{{ value_json.'+field+' }}', availability_topic=f'{base}/availability', entity_category='diagnostic', expire_after=interval*3)
         if field=='last_success': cfg['device_class']='timestamp'
         if field=='count': cfg['state_class']='measurement'
+        cfg['origin'] = ORIGIN
         yield f'{prefix}/sensor/{ident}/{field}/config', cfg
