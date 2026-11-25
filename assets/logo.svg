@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 128" role="img" aria-labelledby="title">
+  <title id="title">Powerline2MQTT</title>
+  <rect width="560" height="128" rx="18" fill="#12261f"/>
+  <rect x="24" y="23" width="82" height="82" rx="18" fill="#36c98c"/>
+  <path d="M66 34 43 66h19l-9 27 34-41H66l10-18z" fill="#12261f"/>
+  <path d="M110 44q24 20 0 40m10-50q38 30 0 60" fill="none" stroke="#36c98c" stroke-width="4" stroke-linecap="round"/>
+  <text x="155" y="65" font-family="Arial,sans-serif" font-size="39" font-weight="700" fill="#f6faf8">Powerline<tspan fill="#36c98c">2</tspan>MQTT</text>
+  <text x="157" y="89" font-family="Arial,sans-serif" font-size="14" fill="#c4d9cf">Connect. Monitor. Automate.</text>
+</svg>

@@ -34,9 +34,11 @@ def bridge_configs(node, prefix, interval):
     ident=f'powerline2mqtt_{node}_bridge'
     base=f'powerline2mqtt/{node}'
     device=dict(identifiers=[ident], name=f'Powerline2MQTT Bridge ({node})', manufacturer='Powerline2MQTT')
-    for field,name,icon in [('count','Detected adapters','mdi:network'),('failures','Failed polls (session)','mdi:alert-circle-outline'),('last_success','Last successful poll','mdi:clock-outline'),('interface','Network interface','mdi:lan'),('version','Version','mdi:package-variant')]:
+    for field,name,icon in [('count','Detected adapters','mdi:network'),('failures','Failed polls (session)','mdi:alert-circle-outline'),('last_success','Last successful poll','mdi:clock-outline'),('interface','Network interface','mdi:lan'),('version','Version','mdi:package-variant'),('successes','Successful polls (session)','mdi:check-circle-outline'),('consecutive_failures','Consecutive failed polls','mdi:alert-outline'),('success_rate','Poll success rate','mdi:percent'),('poll_interval','Polling interval','mdi:timer-outline'),('retry_interval','Retry interval','mdi:timer-refresh-outline')]:
         cfg=dict(name=name, unique_id=f'{ident}_{field}', device=device, icon=icon, state_topic=f'{base}/bridge/state', value_template='{{ value_json.'+field+' }}', availability_topic=f'{base}/availability', entity_category='diagnostic', expire_after=interval*3)
         if field=='last_success': cfg['device_class']='timestamp'
-        if field=='count': cfg['state_class']='measurement'
+        if field in ('count','success_rate','consecutive_failures'): cfg['state_class']='measurement'
+        if field=='success_rate': cfg['unit_of_measurement']='%'
+        if field in ('poll_interval','retry_interval'): cfg.update(device_class='duration', unit_of_measurement='s')
         cfg['origin'] = ORIGIN
         yield f'{prefix}/sensor/{ident}/{field}/config', cfg
