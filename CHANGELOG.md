@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0-rc.3
+
+- Add native Home Assistant OS app icon and logo.
+- Align HAOS and collector version metadata.
+- No collector behavior changes.
+- HAOS runtime validation remains pending.
+
 ## 0.1.0-rc.2
 - Monotonic polling schedule; MQTT events no longer trigger early hardware scans.
 - Five-second retry after scan or publication failure and grace for an isolated scan failure.
