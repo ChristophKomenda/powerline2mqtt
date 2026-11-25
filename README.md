@@ -8,6 +8,18 @@ Powerline2MQTT bridges compatible HomePlug AV/AV2 adapters to MQTT using Linux E
 
 > **Experimental alpha:** one Raspberry Pi 5 / Debian 13 / QCA7420 local adapter and two remote Gongjin-OUI stations were validated end to end with alpha.1 (18 sensors). Alpha.2 adds discovery metadata and diagnostics; other chipsets, AMD64 and HAOS are not yet validated. G.hn is not supported.
 
+## At a glance
+
+| Feature | Status |
+|---|---|
+| Raspberry Pi 5 / ARM64 | Alpha.1 hardware validated |
+| MQTT discovery | Alpha.1 validated: 18 sensors |
+| QCA7420 (TP-Link OUI) | Local adapter validated |
+| Gongjin OUI | Two remote stations observed |
+| Other chipsets / AMD64 / HAOS | Not hardware validated |
+
+[Quick start](#quick-start) · [Readings](#understanding-the-readings) · [Troubleshooting](#troubleshooting) · [Contributing](#development-and-compatibility)
+
 ## What you get
 
 - Automatic topology discovery, TX/RX link rates, network role and TEI.
@@ -42,7 +54,7 @@ Set `MQTT_HOST`, `MQTT_PORT`, `MQTT_USERNAME`, `MQTT_PASSWORD`, `PLC_INTERFACE`,
 
 ## Understanding the readings
 
-TX and RX are reported physical link rates relative to the queried local adapter, not application throughput. Zero is preserved as reported; it can indicate missing estimates rather than an outage. Local TX/RX and unavailable remote firmware are not fabricated. Manufacturer labels currently use a small built-in MAC prefix map (not a complete OUI database). Gongjin is an OEM, not necessarily the retail brand. Connectivity is based on successful topology observations; a bridge failure makes devices unavailable. Failure counts reset on process restart and are published on recovery. Multiple collectors have separate identities and are not deduplicated.
+TX and RX are reported physical link rates relative to the queried local adapter, not application throughput. Zero is preserved as reported; it can indicate missing estimates rather than an outage. Local TX/RX and unavailable remote firmware are not fabricated. Manufacturer labels currently use a small built-in MAC prefix map (not a complete OUI database). Gongjin is an OEM, not necessarily the retail brand. Connectivity is based on successful topology observations; a bridge failure makes devices unavailable. Alpha.3 caches unchanged discovery payloads and republishes after MQTT reconnection. A missing adapter is marked offline after two consecutive successful scans without it. Failed whole-network scans still mark the bridge unavailable. Failure counts reset on process restart and are published on recovery. Multiple collectors have separate identities and are not deduplicated.
 
 ## Troubleshooting
 
@@ -50,7 +62,7 @@ Run `docker compose exec powerline2mqtt plcstat -i eth0 -t` (replace eth0 if nee
 
 ## Development and compatibility
 
-Run `python3 -m unittest discover -s tests -v`. Container image builds for ARM64 and AMD64 are configured in GitHub Actions; published packages and platform compatibility must be verified after the workflow completes. HAOS add-on support is planned, not available yet. Contributions with sanitized topology fixtures, chipset information and reproducible bug reports are welcome.
+Run `python3 -m unittest discover -s tests -v`. CI includes local container build checks for ARM64 and AMD64 without publishing; published packages and platform compatibility must be verified after the workflow completes. HAOS add-on support is planned, not available yet. Contributions with sanitized topology fixtures, chipset information and reproducible bug reports are welcome.
 
 ## Licensing
 
