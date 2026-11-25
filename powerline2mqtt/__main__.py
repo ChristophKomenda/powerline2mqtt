@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 import paho.mqtt.client as mqtt
 from .parser import parse_topology
+from .runtime import DiscoveryCache, Presence, load_known
 from .discovery import adapter_configs, bridge_configs
 from datetime import datetime, timezone
 from . import __version__
@@ -17,6 +18,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(mess
 log = logging.getLogger('powerline2mqtt')
 stop = threading.Event()
 connected = threading.Event()
+refresh = threading.Event()
+cache = DiscoveryCache()
 for sig in (signal.SIGINT, signal.SIGTERM):
     signal.signal(sig, lambda *_: stop.set())
 node = os.getenv('NODE_ID', 'pi5')
@@ -38,6 +41,7 @@ def on_connect(c, u, flags, reason, props):
     if reason.is_failure:
         log.error('MQTT rejected connection: %s', reason)
     else:
+        refresh.set()
         connected.set()
 def on_disconnect(c, u, flags, reason, props):
     connected.clear()
@@ -58,7 +62,7 @@ def discover(row):
     ident = f'powerline2mqtt_{node}_{key}'
     root = f'{base}/{key}'
     for topic, cfg in adapter_configs(row, node, prefix, interval):
-        pub(topic, json.dumps(cfg))
+        cache.publish(topic, cfg, pub)
     pub(f'{root}/state', json.dumps(row), retain=False)
     pub(f'{root}/availability', 'online')
 
@@ -68,9 +72,11 @@ def main():
     last_success = None
     store = Path('/data/known.json')
     try:
-        known = set(json.loads(store.read_text()))
-        known = {k for k in known if re.fullmatch(r'[0-9a-f]{12}', k)}
+        known = load_known(store)
     except FileNotFoundError: pass
+    except (ValueError, OSError) as exc:
+        log.warning("Ignoring unreadable adapter cache: %s", exc)
+    presence = Presence(known)
     client.connect_async(os.getenv('MQTT_HOST','127.0.0.1'), int(os.getenv('MQTT_PORT','1883')), 30)
     client.loop_start()
     try:
@@ -79,12 +85,15 @@ def main():
                 log.warning('Waiting for MQTT connection')
                 continue
             try:
+                if refresh.is_set():
+                    refresh.clear()
+                    cache.clear()
                 result = subprocess.run(['plcstat','-i',iface,'-t'], capture_output=True, text=True, timeout=20, check=True)
                 rows = parse_topology(result.stdout)
                 current = {mac.replace(':','').lower() for mac in rows}
-                for key in known-current:
+                for key in presence.observe(current):
                     pub(f'{base}/{key}/availability','offline')
-                known |= current
+                known = presence.known
                 store.parent.mkdir(parents=True, exist_ok=True)
                 tmp = store.with_suffix('.tmp')
                 tmp.write_text(json.dumps(sorted(known)))
@@ -92,12 +101,13 @@ def main():
                 for row in rows.values(): discover(row)
                 last_success = datetime.now(timezone.utc).isoformat()
                 for topic, cfg in bridge_configs(node, prefix, interval):
-                    pub(topic, json.dumps(cfg))
+                    cache.publish(topic, cfg, pub)
                 pub(f'{base}/bridge/state', json.dumps(dict(count=len(rows), failures=failures, last_success=last_success, interface=iface, version=__version__)), retain=False)
                 pub(avail,'online')
                 log.info('Detected %d adapters', len(rows))
             except Exception as exc:
                 failures += 1
+                cache.clear()
                 log.warning('Poll failed: %s', exc)
                 if connected.is_set():
                     try: pub(avail,'offline')
