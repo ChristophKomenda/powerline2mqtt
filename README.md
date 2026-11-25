@@ -101,3 +101,8 @@ Project source is MIT licensed. The separately installed Debian packages retain 
 ## Release readiness
 
 See [release checklist](docs/RELEASE.md) for hardware, MQTT outage, HA restart, HAOS and redistribution checks. The RC is not a stable release.
+
+<!-- github-growth-related-projects -->
+## Related projects
+
+- [**Home Assistant Community Apps**](https://github.com/ChristophKomenda/home-assistant-apps) — Experimental HAOS distribution.
