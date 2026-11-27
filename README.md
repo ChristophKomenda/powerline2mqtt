@@ -1,4 +1,4 @@
-# Powerline2MQTT
+# Powerline2MQTT — dLAN and Powerline Monitoring for Home Assistant
 
 ![Powerline2MQTT – Connect. Monitor. Automate.](assets/logo.svg)
 
@@ -106,3 +106,21 @@ See [release checklist](docs/RELEASE.md) for hardware, MQTT outage, HA restart, 
 ## Related projects
 
 - [**Home Assistant Community Apps**](https://github.com/ChristophKomenda/home-assistant-apps) — Experimental HAOS distribution.
+
+<!-- github-seo:begin -->
+
+## Related projects
+
+- [Infrastructure HA Monitor](https://github.com/ChristophKomenda/infrastructure-ha-monitor)
+
+## Frequently asked questions — quick answers
+
+### How can I monitor dLAN adapters in Home Assistant?
+
+Powerline2MQTT uses Linux Ethernet management frames and open-plc-utils to discover compatible HomePlug AV/AV2 adapters, then publishes measurements through MQTT discovery.
+
+### Does Powerline2MQTT support all Powerline adapters?
+
+No. Compatibility depends on the chipset and protocol. G.hn is not supported. Consult the current validation and compatibility information above before installing.
+
+<!-- github-seo:end -->
