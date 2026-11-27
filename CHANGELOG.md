@@ -1,5 +1,33 @@
 # Changelog
 
+
+## Unreleased - FRITZ!Box backend
+
+### Added
+
+- Optional FRITZ!Box TR-064 and Mesh API backend.
+- Routed-network Powerline adapter discovery.
+- Reference-relative Powerline link rates.
+- Configurable reference adapter MAC address.
+- FRITZ!Box firmware and connectivity monitoring.
+- Experimental HAOS configuration options.
+- Backend parser and discovery compatibility tests.
+
+### Compatibility
+
+- Existing HomePlug backend remains the default.
+- MQTT identifiers remain based on node ID and MAC address.
+- Existing runtime and polling behavior are retained.
+
+### Validation
+
+- Raspberry Pi 5 ARM64 Docker build successful.
+- Three physical Powerline adapters detected.
+- Home Assistant MQTT entities updated successfully.
+- TX/RX direction semantics and HAOS runtime remain
+  subject to further validation.
+
+
 ## 0.1.0-rc.3
 
 - Add native Home Assistant OS app icon and logo.
