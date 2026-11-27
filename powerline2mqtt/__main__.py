@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 import paho.mqtt.client as mqtt
 from .parser import parse_topology
+from .fritzbox import FritzBoxClient
 from .runtime import DiscoveryCache, Presence, load_known, PollSchedule, PollHealth
 from .discovery import adapter_configs, bridge_configs
 from datetime import datetime, timezone
@@ -75,6 +76,24 @@ def discover(row):
     pub(f'{root}/availability', 'online')
 
 def main():
+    backend = os.getenv("POWERLINE_BACKEND", "homeplug").lower()
+
+    if backend not in ("homeplug", "fritzbox"):
+        raise ValueError("Unsupported POWERLINE_BACKEND")
+
+    fritzbox = None
+    reference = None
+
+    if backend == "fritzbox":
+        reference = os.environ["FRITZBOX_REFERENCE_MAC"]
+        fritzbox = FritzBoxClient(
+            os.environ["FRITZBOX_URL"],
+            os.environ["FRITZBOX_USERNAME"],
+            os.environ["FRITZBOX_PASSWORD"],
+        )
+
+    log.info("Powerline backend: %s", backend)
+
     known = set()
     health = PollHealth()
     schedule = PollSchedule(interval)
@@ -95,7 +114,7 @@ def main():
         for topic, cfg in bridge_configs(node, prefix, interval):
             cache.publish(topic, cfg, pub)
         state = dict(count=last_count, last_success=last_success,
-                     interface=iface, version=__version__, poll_interval=interval,
+                     interface=iface if fritzbox is None else "fritzbox", version=__version__, poll_interval=interval,
                      retry_interval=schedule.retry, **health.metrics())
         pub(f'{base}/bridge/state', json.dumps(state), retain=False)
 
@@ -112,8 +131,11 @@ def main():
             if stop.is_set():
                 break
             try:
-                result = subprocess.run(['plcstat','-i',iface,'-t'], capture_output=True, text=True, timeout=20, check=True)
-                rows = parse_topology(result.stdout)
+                if fritzbox is not None:
+                    rows = fritzbox.poll(reference)
+                else:
+                    result = subprocess.run(['plcstat','-i',iface,'-t'], capture_output=True, text=True, timeout=20, check=True)
+                    rows = parse_topology(result.stdout)
             except Exception as exc:
                 health.record(False)
                 schedule.completed(time.monotonic(), False)

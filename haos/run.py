@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 def environment(options):
-    keys = ('node_id', 'plc_interface', 'poll_interval', 'mqtt_host', 'mqtt_port', 'mqtt_username', 'mqtt_password', 'mqtt_tls', 'discovery_prefix')
+    keys = ('node_id', 'plc_interface', 'poll_interval', 'mqtt_host', 'mqtt_port', 'mqtt_username', 'mqtt_password', 'mqtt_tls', 'discovery_prefix', 'powerline_backend', 'fritzbox_url', 'fritzbox_username', 'fritzbox_password', 'fritzbox_reference_mac')
     if not options.get('mqtt_host'):
         raise ValueError('Configure mqtt_host with the reachable broker address')
     return {key.upper(): str(options[key]).lower() if isinstance(options[key], bool) else str(options[key]) for key in keys if key in options and options[key] is not None}

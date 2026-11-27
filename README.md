@@ -124,3 +124,66 @@ Powerline2MQTT uses Linux Ethernet management frames and open-plc-utils to disco
 No. Compatibility depends on the chipset and protocol. G.hn is not supported. Consult the current validation and compatibility information above before installing.
 
 <!-- github-seo:end -->
+
+## FRITZ!Box backend (experimental)
+
+Powerline2MQTT supports two monitoring backends:
+
+| Backend | Transport | Use case |
+| --- | --- | --- |
+| homeplug | Direct Layer-2 HomePlug | Local Powerline networks |
+| fritzbox | TR-064 and Mesh API | Routed Powerline networks |
+
+The FRITZ!Box backend enables Powerline monitoring when
+the monitoring host and Powerline adapters are separated
+by a router.
+
+### Configuration
+
+    POWERLINE_BACKEND=fritzbox
+    FRITZBOX_URL=http://192.168.188.1:49000
+    FRITZBOX_USERNAME=your-monitoring-user
+    FRITZBOX_PASSWORD=your-password
+    FRITZBOX_REFERENCE_MAC=AA:BB:CC:DD:EE:FF
+
+The default backend remains homeplug.
+
+Use a dedicated FRITZ!Box account with the necessary
+permissions. Keep credentials outside version control.
+Prefer HTTPS with certificate validation where supported.
+
+### Supported data
+
+- Active Powerline adapters and MAC addresses
+- Adapter firmware versions
+- Reference-relative Powerline link rates
+- MQTT connectivity and polling diagnostics
+- Stable Home Assistant discovery identifiers
+
+### Limitations
+
+- TX/RX direction interpretation remains experimental.
+- Chipset, TEI and HomePlug network role are unavailable.
+- The configured reference adapter must be available.
+- Link rates are PHY estimates, not measured throughput.
+- HAOS configuration is provided but runtime validation
+  on Home Assistant OS is pending.
+
+### Hardware validation
+
+Successfully tested with:
+
+- FRITZ!Box 5690 Pro
+- Mesh API schema 9.5
+- UniFi Cloud Gateway Ultra
+- Raspberry Pi 5 (ARM64)
+- Strong HomePlug AV adapters
+- TP-Link Powerline adapter
+- Home Assistant Container
+- MQTT discovery
+
+All three Powerline adapters were detected through
+the FRITZ!Box API across a routed network.
+
+Existing Home Assistant entity identifiers were retained
+when using the same node ID and adapter MAC addresses.

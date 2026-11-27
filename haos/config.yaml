@@ -11,6 +11,11 @@ host_network: true
 privileged: [NET_RAW]
 stage: experimental
 options:
+  powerline_backend: homeplug
+  fritzbox_url: ""
+  fritzbox_username: ""
+  fritzbox_password: ""
+  fritzbox_reference_mac: ""
   node_id: haos
   plc_interface: eth0
   poll_interval: 60
@@ -21,6 +26,11 @@ options:
   mqtt_tls: false
   discovery_prefix: homeassistant
 schema:
+  powerline_backend: list(homeplug|fritzbox)
+  fritzbox_url: str?
+  fritzbox_username: str?
+  fritzbox_password: password?
+  fritzbox_reference_mac: str?
   node_id: str
   plc_interface: str
   poll_interval: int(10,3600)
