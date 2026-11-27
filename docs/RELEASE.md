@@ -27,3 +27,18 @@ RC.1 on Raspberry Pi 5 / Debian 13 / ARM64: 14 unit tests passed; three adapters
 - [ ] Verify first transient scan failure retains healthy availability when appropriate; repeat failure marks bridge unavailable; recovery follows a successful retry.
 - [ ] Verify no stale adapter measurements are republished on a failed scan.
 - [ ] Verify hardware failure counters exclude MQTT publication errors.
+
+
+## RC.4 recorded evidence (28 November 2026)
+
+- [x] 36/36 unit and regression tests passed.
+- [x] 10/10 PR CI checks passed (AMD64 and ARM64 container and HAOS builds).
+- [x] ARM64 Docker hardware validation: FRITZ!Box 5690 Pro, Mesh schema 9.5, UniFi gateway.
+- [x] Three Strong/TP-Link adapters detected; 35 HA entities, 26 available values, 9 unknown.
+- [x] Existing MQTT entity identifiers preserved.
+- [ ] Independent TX/RX direction verification.
+- [ ] Long-term stability validation.
+- [ ] HAOS runtime validation.
+- [ ] AMD64 runtime validation.
+
+RC.4 was published as an experimental prerelease with internal RC.3 metadata. RC.5 aligns metadata without changing the existing tag. RC.5 requires its own CI validation before release.

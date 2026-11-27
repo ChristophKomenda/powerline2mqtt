@@ -1,76 +1,196 @@
-# Powerline2MQTT — dLAN and Powerline Monitoring for Home Assistant
+# Powerline2MQTT — Powerline & dLAN Monitoring for Home Assistant
 
-![Powerline2MQTT – Connect. Monitor. Automate.](assets/logo.svg)
+![Powerline2MQTT](assets/logo.svg)
 
-**Local Powerline monitoring. No cloud. MQTT discovery for Home Assistant.**
+**Local monitoring. Two backends. No cloud.**
 
 [![CI](https://github.com/ChristophKomenda/powerline2mqtt/actions/workflows/ci.yml/badge.svg)](https://github.com/ChristophKomenda/powerline2mqtt/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/ChristophKomenda/powerline2mqtt?include_prereleases)](https://github.com/ChristophKomenda/powerline2mqtt/releases)
+[![License](https://img.shields.io/github/license/ChristophKomenda/powerline2mqtt)](LICENSE)
 
-Powerline2MQTT bridges compatible HomePlug AV/AV2 adapters to MQTT using Linux Ethernet management frames and `plcstat` from open-plc-utils. No adapter IP address is required. The collector can run separately from Home Assistant.
+Monitor compatible HomePlug AV/AV2 Powerline and dLAN adapters locally via MQTT discovery for Home Assistant. Choose direct Ethernet monitoring or the experimental FRITZ!Box TR-064 and Mesh API backend for routed networks.
 
-> **Experimental release candidate:** one Raspberry Pi 5 / Debian 13 / QCA7420 local adapter and two remote Gongjin-OUI stations were validated end to end with alpha.1 (18 sensors). RC.1 also ran on the same ARM64 host (14 unit tests passed, three adapters detected, one transient scan failure recovered automatically). RC.2 improves scheduling and diagnostics; its runtime validation is pending. Experimental HAOS packaging is included; other chipsets, AMD64 and HAOS are not yet validated. G.hn is not supported.
+> Release candidate: ARM64 and Home Assistant Container hardware tested. FRITZ!Box direction semantics and HAOS runtime remain experimental.
 
-## At a glance
+[Backends](#choose-your-backend) · [Quick start](#quick-start) · [Compatibility](#compatibility-and-validation) · [HAOS](#home-assistant-os-experimental) · [Troubleshooting](#troubleshooting) · [FAQ](#frequently-asked-questions)
 
-| Feature | Status |
-|---|---|
-| Raspberry Pi 5 / ARM64 | Alpha.1 hardware validated |
-| MQTT discovery | Alpha.1 validated: 18 sensors |
-| QCA7420 (TP-Link OUI) | Local adapter validated |
-| Gongjin OUI | Two remote stations observed |
-| Other chipsets / AMD64 / HAOS | Not hardware validated |
+## Why Powerline2MQTT?
 
-[Quick start](#quick-start) · [HAOS](#home-assistant-os-experimental) · [Upgrade and rollback](#upgrade-and-rollback) · [Readings](#understanding-the-readings) · [Troubleshooting](#troubleshooting) · [Contributing](#development-and-compatibility)
+- Local, read-only monitoring without cloud services.
+- Two alternative monitoring backends.
+- Automatic MQTT discovery, connectivity and polling diagnostics.
+- Physical link-rate estimates and hardware metadata where available.
+- Independent collector with stable MQTT identities based on node ID and MAC address.
 
-## What you get
+## Choose your backend
 
-- Automatic topology discovery, TX/RX link rates, network role and TEI.
-- Chipset and firmware when provided by the adapter.
-- MQTT discovery, adapter connectivity and bridge diagnostics.
-- Read-only management queries; no reset, pairing or firmware commands.
-- Docker host networking with `NET_RAW` only (not privileged).
+| Feature | HomePlug | FRITZ!Box |
+|---|---|---|
+| Transport | Ethernet Layer 2 | TR-064 / Mesh API |
+| Direct Layer-2 access | Required | Not required on collector |
+| Routed networks | Not directly | Experimental |
+| Adapter discovery | Yes | Yes |
+| TX/RX estimates | Yes | Experimental direction |
+| Firmware | When available | When available |
+| Chipset, TEI, role | When available | Unavailable |
+| MQTT discovery | Yes | Yes |
+| Default | Yes | No |
 
 ```mermaid
 flowchart LR
-  A[HomePlug adapters] --> B[Powerline2MQTT collector]
-  B --> C[MQTT broker]
-  C --> D[Home Assistant]
-  C --> E[Other MQTT clients]
+    A[Powerline adapters] --> B[Direct HomePlug backend]
+    A --> C[FRITZ!Box]
+    C --> D[TR-064 / Mesh backend]
+    B --> E[Powerline2MQTT]
+    D --> E
+    E --> F[MQTT broker]
+    F --> G[Home Assistant]
+    F --> H[Other MQTT clients]
 ```
+
+The FRITZ!Box backend is useful behind a separate router such as a UniFi gateway, where direct HomePlug Ethernet management frames cannot reach the Powerline network.
 
 ## Quick start
 
-Requirements: Linux Docker Engine and Compose, an Ethernet interface connected to a compatible Powerline network, an MQTT broker, and MQTT discovery enabled in Home Assistant.
+Requirements: Linux Docker Engine and Compose, a reachable MQTT broker, and MQTT discovery enabled in Home Assistant if used. HomePlug requires direct Layer-2 access; FRITZ!Box requires reachable API access.
 
 ```sh
 git clone https://github.com/ChristophKomenda/powerline2mqtt.git
 cd powerline2mqtt
 cp .env.example .env
 chmod 600 .env
-# Edit .env for your broker and Ethernet interface
+```
+
+Edit `.env` before starting.
+
+### Common MQTT configuration
+
+```dotenv
+NODE_ID=pi5
+POLL_INTERVAL=60
+MQTT_HOST=127.0.0.1
+MQTT_PORT=1883
+MQTT_USERNAME=your-mqtt-user
+MQTT_PASSWORD=your-mqtt-password
+MQTT_TLS=false
+DISCOVERY_PREFIX=homeassistant
+```
+
+Loopback works only when the broker is reachable from the host network. Use a distinct node ID for every independent collector.
+
+### Option A: HomePlug (default)
+
+```dotenv
+POWERLINE_BACKEND=homeplug
+PLC_INTERFACE=eth0
+```
+
+Uses `plcstat` from open-plc-utils. The Ethernet interface must have direct access to the Powerline network. No adapter IP is needed.
+
+### Option B: FRITZ!Box (experimental)
+
+```dotenv
+POWERLINE_BACKEND=fritzbox
+FRITZBOX_URL=http://192.168.188.1:49000
+FRITZBOX_USERNAME=your-monitoring-user
+FRITZBOX_PASSWORD=your-password
+FRITZBOX_REFERENCE_MAC=AA:BB:CC:DD:EE:FF
+```
+
+Replace the example router address and reference MAC. Enable the required API access and use a dedicated account with the necessary permissions. The reference adapter must be visible and active. Prefer HTTPS with certificate validation where supported.
+
+### Start the collector
+
+```sh
 docker compose up -d --build
 docker compose logs -f powerline2mqtt
 ```
 
-Set `MQTT_HOST`, `MQTT_PORT`, `MQTT_USERNAME`, `MQTT_PASSWORD`, `PLC_INTERFACE`, `NODE_ID` and `POLL_INTERVAL` in `.env`. Loopback works only when the broker is reachable from the host. Use a distinct node ID for every collector. For TLS, enable `MQTT_TLS` and use a trusted certificate; custom CA files require a container mount and `MQTT_CA_FILE` in `.env`. Never commit credentials. Limit the MQTT account to its own `powerline2mqtt/<node>/#` and relevant Home Assistant discovery topics. Do not expose the broker publicly.
+### Security
+
+Never commit credentials. Restrict MQTT access to this collector's `powerline2mqtt/<node>/#` and relevant discovery topics. Do not expose MQTT or TR-064 publicly. Enable MQTT TLS with trusted certificates across untrusted segments; custom CA files require a container mount and `MQTT_CA_FILE`. Direct HomePlug monitoring needs host networking and NET_RAW, not a fully privileged container.
+
+## Compatibility and validation
+
+| Hardware | Validation |
+|---|---|
+| Raspberry Pi 5 / Debian 13 | ARM64 runtime tested |
+| QCA7420 / TP-Link OUI | Direct HomePlug tested |
+| Gongjin OUI stations | Observed through HomePlug |
+| FRITZ!Box 5690 Pro / Mesh schema 9.5 | Experimental backend tested |
+| UniFi Cloud Gateway Ultra | Routed access tested |
+| Strong and TP-Link adapters | FRITZ!Box discovery tested |
+| AMD64 | CI build validated; runtime pending |
+| Home Assistant Container | Runtime tested |
+| Home Assistant OS | Build validated; runtime pending |
+| G.hn | Not supported |
+
+### RC.4 observed validation
+
+| Check | Result |
+|---|---|
+| Unit and regression tests | 36/36 passed |
+| PR CI checks | 10/10 passed |
+| Physical adapters | 3/3 detected |
+| Home Assistant entities | 35 discovered |
+| Available values | 26 |
+| Unavailable entities | 0 |
+| Unknown metadata entities | 9 |
+| Existing MQTT identities | Preserved |
+
+These are observations from the tested environment, not universal compatibility guarantees. Long-term stability, independent TX/RX direction verification and HAOS runtime validation remain pending. See [release notes](https://github.com/ChristophKomenda/powerline2mqtt/releases) and [validation checklist](docs/RELEASE.md).
 
 ## Home Assistant OS (experimental)
 
 [![Add repository to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FChristophKomenda%2Fpowerline2mqtt)
 
-This source-build app is experimental; installation and runtime on HAOS are not yet validated. Configure the reachable MQTT broker and the correct physical Ethernet interface. See [HAOS instructions](haos/DOCS.md). Keep a distinct node ID when running multiple collectors.
+The experimental source-build app offers both backend configuration modes. Installation and runtime validation are pending. See [HAOS instructions](haos/DOCS.md).
 
 ## Understanding the readings
 
+TX/RX readings are physical link-rate estimates, not measured throughput. FRITZ!Box direction interpretation is experimental; zero may mean missing estimates rather than outage. Chipset, TEI and HomePlug roles are unavailable through the FRITZ!Box backend.
+
+<details>
+<summary>Detailed polling, availability and discovery behavior</summary>
+
 TX and RX are reported physical link rates relative to the queried local adapter, not application throughput. Zero is preserved as reported; it can indicate missing estimates rather than an outage. Local TX/RX and unavailable remote firmware are not fabricated. Manufacturer labels currently use a small built-in MAC prefix map (not a complete OUI database). Gongjin is an OEM, not necessarily the retail brand. Connectivity is based on successful topology observations; a bridge failure makes devices unavailable. Alpha.3 caches unchanged discovery payloads and republishes after MQTT reconnection. A missing adapter is marked offline after two consecutive successful scans without it. Failed whole-network scans still mark the bridge unavailable. RC.2 uses a monotonic completion-based scheduler: ordinary scans are separated by the configured polling interval, retries by five seconds. MQTT reconnects and Home Assistant birth messages request a discovery refresh at the next scheduled successful scan; they never advance the hardware deadline. A single hardware scan failure after a healthy scan is tolerated unless a discovery refresh is pending. A second consecutive failure, or an MQTT/persistence error, marks the bridge unavailable when possible. Old adapter values are not republished as new samples. Bridge diagnostics report session success/failure counts, consecutive failures, success rate, poll interval and retry interval. Hardware scan counters reset on process restart and exclude MQTT publication failures; diagnostics are unavailable during bridge outages and recover with the next successful publication. Multiple collectors have separate identities and are not deduplicated.
+
+</details>
 
 ## Troubleshooting
 
-Run `docker compose exec powerline2mqtt plcstat -i eth0 -t` (replace eth0 if needed). The collector needs direct Layer 2 access. Check logs for MQTT authentication and topology failures. A failed initial scan is retried after five seconds. Stop with `docker compose down`; retained discovery and availability topics remain. For permanent removal clear only this collector's retained discovery topics with empty retained MQTT messages and remove the associated devices in Home Assistant. Do not clear other integrations' topics.
+<details>
+<summary>HomePlug: no local adapter detected</summary>
+
+```sh
+docker compose exec powerline2mqtt plcstat -i eth0 -t
+```
+
+Replace eth0 as needed. Verify direct Layer-2 access. HomePlug management frames do not normally cross routed network boundaries. Consider the FRITZ!Box backend if appropriate.
+
+</details>
+
+<details>
+<summary>FRITZ!Box: no adapters or connection failed</summary>
+
+Check the router URL, API permissions, routing, firewall access, reference adapter MAC and active status. Check the FRITZ!Box topology and collector logs. Do not publish credentials or unredacted diagnostics.
+
+</details>
+
+<details>
+<summary>MQTT and Home Assistant discovery</summary>
+
+```sh
+docker compose logs --tail=100 powerline2mqtt
+```
+
+Check authentication, discovery configuration and node ID conflicts. Unknown metadata can be expected. Stop with `docker compose down`; retained discovery and availability topics remain. For permanent removal clear only this collector's retained discovery topics using empty retained MQTT messages and remove associated devices. Never clear the entire broker.
+
+</details>
 
 ## Upgrade and rollback
 
-Keep `.env`, `NODE_ID` and the persistent Docker volume unchanged. Before upgrading, note the running release and ensure the working tree is clean. To update the source installation:
+Preserve `.env`, node ID and persistent data. Record the running release and back up configuration before upgrading. Ensure the working tree is clean.
 
 ```sh
 git fetch --tags origin
@@ -80,19 +200,65 @@ docker compose up -d --build
 docker compose logs --tail=50 powerline2mqtt
 ```
 
-To roll back to the previously published RC.1 tag, if present, use:
+For rollback, select the previously used published tag, for example:
 
 ```sh
 git fetch --tags origin
-git switch --detach v0.1.0-rc.1
+git switch --detach v0.1.0-rc.3
 docker compose up -d --build
 ```
 
-Do not delete the volume or `.env`. New RC.2 retained discovery configurations may remain after rollback; remove only the five RC.2-specific bridge discovery topics and corresponding obsolete entities if permanent cleanup is desired. Never clear the entire broker. Return to `main` before upgrading again.
+Restore a compatible backend configuration when rolling back to a version without FRITZ!Box support. Remove only obsolete retained discovery topics belonging to this collector. Do not delete the volume or `.env`. Return to main before upgrading again.
 
-## Development and compatibility
+## Frequently asked questions
 
-Run `python3 -m unittest discover -s tests -v`. CI includes local container build checks for ARM64 and AMD64 without publishing; published packages and platform compatibility must be verified after the workflow completes. An experimental source-build HAOS app is included; see [HAOS setup](haos/DOCS.md). Runtime validation is still pending. Contributions with sanitized topology fixtures, chipset information and reproducible bug reports are welcome.
+<details>
+<summary>How can I monitor dLAN adapters in Home Assistant?</summary>
+
+Powerline2MQTT discovers compatible adapters via HomePlug Ethernet queries or the experimental FRITZ!Box API and publishes entities using MQTT discovery.
+
+</details>
+
+<details>
+<summary>Can I monitor Powerline behind a UniFi router?</summary>
+
+Yes, experimentally, if the collector can reach the FRITZ!Box API and the router reports the adapters. Direct HomePlug requires Layer-2 access.
+
+</details>
+
+<details>
+<summary>Are TP-Link and Strong adapters supported?</summary>
+
+Both brands were observed in the tested FRITZ!Box environment. Compatibility depends on model, chipset, protocol and API data. G.hn is unsupported.
+
+</details>
+
+<details>
+<summary>Do I need Home Assistant?</summary>
+
+No. Other MQTT clients can consume published data.
+
+</details>
+
+<details>
+<summary>Will existing MQTT entities change?</summary>
+
+Identifiers remain based on node ID and adapter MAC address. The same values preserve identity for matching entities. Stop the previous collector before starting another with the same node ID.
+
+</details>
+
+## Development and contributions
+
+```sh
+python3 -m unittest discover -s tests -v
+```
+
+CI validates AMD64 and ARM64 container builds. Hardware reports, sanitized topology fixtures, reproducible bugs and HAOS testing are welcome. Build validation does not imply published images or runtime validation.
+
+## Related projects
+
+- [Home Assistant Community Apps](https://github.com/ChristophKomenda/home-assistant-apps)
+- [Infrastructure HA Monitor](https://github.com/ChristophKomenda/infrastructure-ha-monitor)
 
 ## Licensing
 
@@ -100,90 +266,4 @@ Project source is MIT licensed. The separately installed Debian packages retain 
 
 ## Release readiness
 
-See [release checklist](docs/RELEASE.md) for hardware, MQTT outage, HA restart, HAOS and redistribution checks. The RC is not a stable release.
-
-<!-- github-growth-related-projects -->
-## Related projects
-
-- [**Home Assistant Community Apps**](https://github.com/ChristophKomenda/home-assistant-apps) — Experimental HAOS distribution.
-
-<!-- github-seo:begin -->
-
-## Related projects
-
-- [Infrastructure HA Monitor](https://github.com/ChristophKomenda/infrastructure-ha-monitor)
-
-## Frequently asked questions — quick answers
-
-### How can I monitor dLAN adapters in Home Assistant?
-
-Powerline2MQTT uses Linux Ethernet management frames and open-plc-utils to discover compatible HomePlug AV/AV2 adapters, then publishes measurements through MQTT discovery.
-
-### Does Powerline2MQTT support all Powerline adapters?
-
-No. Compatibility depends on the chipset and protocol. G.hn is not supported. Consult the current validation and compatibility information above before installing.
-
-<!-- github-seo:end -->
-
-## FRITZ!Box backend (experimental)
-
-Powerline2MQTT supports two monitoring backends:
-
-| Backend | Transport | Use case |
-| --- | --- | --- |
-| homeplug | Direct Layer-2 HomePlug | Local Powerline networks |
-| fritzbox | TR-064 and Mesh API | Routed Powerline networks |
-
-The FRITZ!Box backend enables Powerline monitoring when
-the monitoring host and Powerline adapters are separated
-by a router.
-
-### Configuration
-
-    POWERLINE_BACKEND=fritzbox
-    FRITZBOX_URL=http://192.168.188.1:49000
-    FRITZBOX_USERNAME=your-monitoring-user
-    FRITZBOX_PASSWORD=your-password
-    FRITZBOX_REFERENCE_MAC=AA:BB:CC:DD:EE:FF
-
-The default backend remains homeplug.
-
-Use a dedicated FRITZ!Box account with the necessary
-permissions. Keep credentials outside version control.
-Prefer HTTPS with certificate validation where supported.
-
-### Supported data
-
-- Active Powerline adapters and MAC addresses
-- Adapter firmware versions
-- Reference-relative Powerline link rates
-- MQTT connectivity and polling diagnostics
-- Stable Home Assistant discovery identifiers
-
-### Limitations
-
-- TX/RX direction interpretation remains experimental.
-- Chipset, TEI and HomePlug network role are unavailable.
-- The configured reference adapter must be available.
-- Link rates are PHY estimates, not measured throughput.
-- HAOS configuration is provided but runtime validation
-  on Home Assistant OS is pending.
-
-### Hardware validation
-
-Successfully tested with:
-
-- FRITZ!Box 5690 Pro
-- Mesh API schema 9.5
-- UniFi Cloud Gateway Ultra
-- Raspberry Pi 5 (ARM64)
-- Strong HomePlug AV adapters
-- TP-Link Powerline adapter
-- Home Assistant Container
-- MQTT discovery
-
-All three Powerline adapters were detected through
-the FRITZ!Box API across a routed network.
-
-Existing Home Assistant entity identifiers were retained
-when using the same node ID and adapter MAC addresses.
+See the [release checklist](docs/RELEASE.md) for hardware, MQTT outage, HAOS and redistribution checks. Powerline2MQTT is a release candidate, not a stable release.

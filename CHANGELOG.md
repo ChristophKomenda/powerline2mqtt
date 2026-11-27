@@ -1,7 +1,15 @@
 # Changelog
 
+## 0.1.0-rc.5
 
-## Unreleased - FRITZ!Box backend
+- Reorganize dual-backend documentation, setup, compatibility, troubleshooting and FAQ.
+- Align collector and HAOS version metadata.
+- Record RC.4 validation; no monitoring behavior changes.
+- Long-term stability, TX/RX direction and HAOS runtime validation remain pending.
+
+
+
+## 0.1.0-rc.4 - Experimental FRITZ!Box backend
 
 ### Added
 
